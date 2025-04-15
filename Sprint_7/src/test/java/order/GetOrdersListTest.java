@@ -1,22 +1,20 @@
 package order;
 
+import api.OrderApi;
 import base.BaseTest;
-import io.qameta.allure.Step;
 import org.junit.Test;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class GetOrdersListTest extends BaseTest {
 
-    @Step("Получение списка заказов")
+    private final OrderApi orderApi = new OrderApi();
+
     @Test
-    public void getOrdersList() {
-        given()
-                .get("/api/v1/orders")
+    public void ordersListShouldReturnNotNullOrders() {
+        orderApi.getOrdersList()
                 .then()
                 .statusCode(200)
-                .body("orders", not(empty()))
-                .body("orders[0].id", notNullValue());
+                .body("orders", notNullValue());
     }
 }

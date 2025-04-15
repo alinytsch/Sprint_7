@@ -5,7 +5,7 @@ import org.junit.Before;
 
 public class BaseTest {
     @Before
-    public void setup() {
+    public void setUp() {
         RestAssured.baseURI = "https://qa-scooter.praktikum-services.ru";
     }
 }
