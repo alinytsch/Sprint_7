@@ -1,107 +1,77 @@
 package courier;
 
+import api.CourierApi;
 import base.BaseTest;
-import io.qameta.allure.Step;
+import io.qameta.allure.Description;
 import io.restassured.response.Response;
-import org.junit.*;
+import model.Courier;
+import model.LoginCredentials;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
-import java.util.Random;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CourierLoginTest extends BaseTest {
 
-    private String login;
-    private final String password = "1234";
-    private final String firstName = "Naruto";
+    private static final String PASSWORD = "1234";
+    private static final String FIRST_NAME = "Naruto";
+
+    private CourierApi courierApi;
+    private Courier courier;
     private int courierId;
-
-    @Step("Генерация уникального логина")
-    public String generateLogin() {
-        return "courier" + new Random().nextInt(999999);
-    }
-
-    @Step("Создание курьера")
-    public void createCourier() {
-        given()
-                .header("Content-type", "application/json")
-                .body("{\"login\":\"" + login + "\", \"password\":\"" + password + "\", \"firstName\":\"" + firstName + "\"}")
-                .post("/api/v1/courier")
-                .then()
-                .statusCode(201);
-    }
-
-    @Step("Попытка логина курьера")
-    public Response loginCourier(String login, String password) {
-        return given()
-                .header("Content-type", "application/json")
-                .body("{\"login\":\"" + login + "\", \"password\":\"" + password + "\"}")
-                .post("/api/v1/courier");
-    }
-
-    @Step("Логин курьера и получение ID")
-    public int getCourierId() {
-        return given()
-                .header("Content-type", "application/json")
-                .body("{\"login\":\"" + login + "\", \"password\":\"" + password + "\"}")
-                .post("/api/v1/courier/login")
-                .then()
-                .statusCode(200)
-                .extract()
-                .path("id");
-    }
-
-    @Step("Удаление курьера")
-    public void deleteCourier(int id) {
-        given()
-                .delete("/api/v1/courier/" + id)
-                .then()
-                .statusCode(200);
-    }
 
     @Before
     public void setUp() {
-        login = generateLogin();
-        createCourier();
-        courierId = getCourierId();
-    }
+        courierApi = new CourierApi();
+        String login = "log" + System.currentTimeMillis();
+        courier = new Courier(login, PASSWORD, FIRST_NAME);
+        courierApi.createCourier(courier);
 
-    @Test
-    public void courierCanLogin() {
-        given()
-                .header("Content-type", "application/json")
-                .body("{\"login\":\"" + login + "\", \"password\":\"" + password + "\"}")
-                .post("/api/v1/courier/login")
-                .then()
-                .statusCode(200)
-                .body("id", notNullValue());
-    }
-
-    @Test
-    public void loginWithWrongPasswordFails() {
-        given()
-                .header("Content-type", "application/json")
-                .body("{\"login\":\"" + login + "\", \"password\":\"wrong\"}")
-                .post("/api/v1/courier/login")
-                .then()
-                .statusCode(404)
-                .body("message", containsString("Учетная запись не найдена"));
-    }
-
-    @Test
-    public void loginWithoutLoginFieldFails() {
-        given()
-                .header("Content-type", "application/json")
-                .body("{\"password\":\"" + password + "\"}")
-                .post("/api/v1/courier/login")
-                .then()
-                .statusCode(400)
-                .body("message", containsString("Недостаточно данных для входа"));
+        Response loginResponse = courierApi.loginCourier(new LoginCredentials(courier.getLogin(), courier.getPassword()));
+        courierId = loginResponse.then().extract().path("id");
     }
 
     @After
     public void tearDown() {
-        deleteCourier(courierId);
+        if (courierId != 0) {
+            courierApi.deleteCourier(courierId);
+        }
+    }
+
+    @Test
+    @Description("Курьер может войти с корректными данными")
+    public void courierCanLoginSuccessfully() {
+        Response response = courierApi.loginCourier(new LoginCredentials(courier.getLogin(), courier.getPassword()));
+        response.then().statusCode(200).body("id", notNullValue());
+    }
+
+    @Test
+    @Description("Логин без логина")
+    public void loginWithoutLoginFails() {
+        Response response = courierApi.loginCourier(new LoginCredentials(null, PASSWORD));
+        response.then().statusCode(400).body("message", equalTo("Недостаточно данных для входа"));
+    }
+
+    @Test
+    @Description("Логин без пароля")
+    public void loginWithoutPasswordFails() {
+        Response response = courierApi.loginCourier(new LoginCredentials(courier.getLogin(), null));
+        response.then().statusCode(400).body("message", equalTo("Недостаточно данных для входа"));
+    }
+
+    @Test
+    @Description("Логин с неправильным паролем")
+    public void loginWithWrongPasswordFails() {
+        Response response = courierApi.loginCourier(new LoginCredentials(courier.getLogin(), "wrongpass"));
+        response.then().statusCode(404).body("message", equalTo("Учетная запись не найдена"));
+    }
+
+    @Test
+    @Description("Логин с неправильным логином")
+    public void loginWithWrongLoginFails() {
+        Response response = courierApi.loginCourier(new LoginCredentials("wronglogin", PASSWORD));
+        response.then().statusCode(404).body("message", equalTo("Учетная запись не найдена"));
     }
 }
